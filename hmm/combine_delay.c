@@ -36,8 +36,8 @@
 #define NUM_BYTES_RX 6
 #define ADXL_345     0x53
 
-int RXByteCtr, RPT_Flag = 0;       // enables repeated start when 1
-volatile unsigned char RxBuffer[8];         // Allocate 6 byte of RAM
+int RXByteCtr;       // enables repeated start when 1
+volatile unsigned char RxBuffer[6];         // Allocate 6 byte of RAM
 unsigned char *PRxData;                     // Pointer to RX data
 unsigned char TXByteCtr, RX = 0;
 unsigned char MSData[3];
@@ -150,26 +150,22 @@ int main(void)
   // Init sequence for ADXL345
   //Transmit process
   Setup_TX(ADXL_345);
-  RPT_Flag = 0;
   Transmit(0x2D,0x00);                    // STUCK
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
 
   //Transmit process
   Setup_TX(ADXL_345);
-  RPT_Flag = 0;
   Transmit(0x2D,0x10);
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
 
   //Transmit process
   Setup_TX(ADXL_345);
-  RPT_Flag = 0;
   Transmit(0x2D,0x08);
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
   
   // Un-comment next block to change range of ADXL345
   /*
     Setup_TX(ADXL_345);
-    RPT_Flag = 1;
     Transmit(0x31,0x01);                            // Range Select at add 0x31 write 0x00 for 2g(default)/ 0x01 for 4g/ 0x02 for 8g/ 0x03 for 16g
     while (UCB0CTL1 & UCTXSTP);         // Ensure stop condition got sent
   */
@@ -200,7 +196,6 @@ void run()
 {
   //Transmit process
   Setup_TX(ADXL_345);
-  RPT_Flag = 0;
   TransmitOne(0x32);                      // Request Data from ADXL345
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
 
@@ -249,11 +244,7 @@ __interrupt void USCIAB0TX_ISR(void)
       }
     else
       {
-        if(RPT_Flag == 0)
-          UCB0CTL1 |= UCTXSTP;                // No Repeated Start: stop condition
-        if(RPT_Flag == 1){                    // if Repeated Start: do nothing
-          RPT_Flag = 0;
-        }
+        UCB0CTL1 |= UCTXSTP;                // No Repeated Start: stop condition
         *PRxData++ = UCB0RXBUF;                   // Move final RX data to PRxData
         __bic_SR_register_on_exit(CPUOFF);      // Exit LPM0
       }}
@@ -265,18 +256,9 @@ __interrupt void USCIAB0TX_ISR(void)
       }
     else
       {
-        /* UCB0CTL1 |= UCTXSTP;                    // I2C stop condition */
-        /* IFG2 &= ~UCB0TXIFG;                     // Clear USCI_B0 TX int flag */
-        if(RPT_Flag == 1){
-          RPT_Flag = 0;
-          TXByteCtr = NUM_BYTES_TX;                // Load TX byte counter
-          __bic_SR_register_on_exit(CPUOFF);
-        }
-        else{
           UCB0CTL1 |= UCTXSTP;                    // I2C stop condition
           IFG2 &= ~UCB0TXIFG;                     // Clear USCI_B0 TX int flag
           __bic_SR_register_on_exit(CPUOFF);      // Exit LPM0
-        }
       }
   }
 }
