@@ -45,9 +45,68 @@ unsigned int wdtCounter = 0;
 
 fp_t acc[3];
 fp_t dir_filter_ref[3];
-fp_t quantizerMap[14][3];
-//fp_t b[112];
-//fp_t a[8][8];
+
+fp_t quantizerMap[14][3] = {
+  { 12990 , -321 , -7587 }, //0
+  { 7048 , 0 , 7048 },
+  { 0 , 0 , 9967 },
+  { -7048 , 0 , 7048 },
+  { -9967 , 0 , 0 },
+  { -7048 , 0 , -7048 },
+  { 1124 , -264 , -18219 }, //6
+  { 7991 , -34 , -14040 }, //7
+  { 0 , 9967 , 0 },
+  { 0 , 7048 , 7048 },
+  { 0 , -7048 , 7048 },
+  { 0 , -9967 , 0 },
+  { 0 , -7048 , -7048 },
+  { 371 , 7838 , -13185 }}; //d
+
+fp_t b[112] = {
+  1533, 5401, 5209, 3951, 1958, 0, 0, 0, // 0
+  0, 10922, 10922, 10922, 0, 0, 0, 0,
+  0, 0, 10922, 10922, 10922, 0, 0, 0,
+  0, 0, 0, 10922, 10922, 10922, 0, 0,
+  0, 0, 0, 0, 10922, 10922, 10922, 0,
+  0, 0, 0, 0, 0, 10922, 10922, 10922,
+  23533, 8183, 10277, 14808, 15356, 16325, 17108, 17255, // 6
+  7157, 15432, 11460, 3073, 2611, 1647, 615, 0, // 7
+  4, 47, 96, 243, 362, 518, 578, 509,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  538, 3703, 5724, 10690, 12477, 14276, 14466, 15003}; // d
+
+/*
+
+fp_t a[64] = {
+  10922, 10922, 10922, 0, 0, 0, 0, 0,
+  0, 10922, 10922, 10922, 0, 0, 0, 0,
+  0, 0, 10922, 10922, 10922, 0, 0, 0,
+  0, 0, 0, 10922, 10922, 10922, 0, 0,
+  0, 0, 0, 0, 10922, 10922, 10922, 0,
+  0, 0, 0, 0, 0, 10922, 10922, 10922,
+  0, 0, 0, 0, 0, 0, 16384, 16384,
+  0, 0, 0, 0, 0, 0, 0, 32767};
+
+fp_t b[112] = {
+  1533, 5401, 5209, 3951, 1958, 0, 0, 0, // 0
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 
+  23533, 8183, 10277, 14808, 15356, 16325, 17108, 17255, // 6
+  7157, 15432, 11460, 3073, 2611, 1647, 615, 0, // 7
+  4, 47, 96, 243, 362, 518, 578, 509,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  538, 3703, 5724, 10690, 12477, 14276, 14466, 15003}; // d
+*/
+  
 fp_t f[8];
 fp_t s[8];
 fp_t last_bit = 1 << FP_BITS-1;
@@ -338,8 +397,6 @@ char filter(){
   fp_t abs = fp_add(fp_add(fp_mul(acc[0], acc[0]),
                            fp_mul(acc[1], acc[1])),
                     fp_mul(acc[2], acc[2]));
-  /* UARTSendArray("abs=", 4); */
-  /* UARTSendInt(abs); */
   ////////////////////////////////////////////////////////////////////////////////
   //idle state filter
   if (!(fp_cmp(abs, d2fp(0.32))==1 ||
@@ -388,7 +445,6 @@ char derive_group(){
   return minGroup;
 }
 
-/*
 //Performs the next iteration of the HMM forward algorithm
 fp_t forward_proc_inc(char o){
   fp_t ord = 0;
@@ -398,63 +454,28 @@ fp_t forward_proc_inc(char o){
   if (started == false){
     for (l = 0; l < 8; l++){
       f[l] = b[(o<<3) + l]; // pi*b
+      //f[l] = b[o][l];
     }
     for (l = 1; l < 8; l++){
       f[l] = 0;
     }
-    started = true;
     return 0;
   }else{
     for (k = 0; k < 8; k++){
       sum = 0;
       for (l = 0; l < 8; l++){
-        sum = fp_add(sum, fp_mul(s[l], a[l][k]));
+        //sum = fp_add(sum, fp_mul(s[l], a[(l<<3) + k]));
+        sum = fp_add(sum, fp_mul(s[l], b[(l<<3) +k]));
       }
       f[k] = fp_mul(sum, b[(o<<3)+k]);
+      //f[k] = fp_mul(sum, b[o][k]);
       ord |= f[k];
     }
   }
   return ord;
-  }
-*/
-
-int pass = 0;
-
-//Called with each accelerometer reading
-void input_reading(){
-  fp_t ord = 0;
-  char i,l;
-  if (filter()){
-    pass++;
-    for (i = 0; i < 2; i++){
-      char group = derive_group();
-      //ord |= forward_proc_inc(group);
-      __delay_cycles(34000);  // delay 1 ms
-    }
-
-    //counts the number of bits we can shift left by - the leading zeros
-    // : count 0
-    // : count1 over if 2* over 1 . + count1 ; then drop ;
-    char n = 0;
-    while (ord && !(ord & last_bit)){
-      n += 1;
-      ord = ord << 1;
-    }
-    if (n>3){
-      n-=3;
-      for (l = 0; l < 8; l++){
-        s[l] = f[l] << n;
-        f[l] = s[l] << n;
-      }
-    }
-    // ~35 s for 1000 iter   => 29 iter/s => 34 ms
-  } else {
-    __delay_cycles(1000);  // delay 1 ms
-    // 3.5 s for 1000 iter => 287 iter/s
-  }
 }
 
-/*
+
 //Called at the end of the gesture,
 //Returns the id of the recognized gesture or -1 if none.
 char input_end(){
@@ -479,26 +500,62 @@ char input_end(){
   
   //printf("m->prob = %.30f\n", fp2d(recogprob));
   
+  UARTSendArray("p=", 2);
+  UARTSendInt(recogprob);
   //dir_filter_ref[0] = 0; //reset for next time
   return recognized;
 }
-*/
+
+// int pass = 0;
+
+//Called with each accelerometer reading
+void input_reading(){
+  fp_t ord = 0;
+  char i,l;
+  if (filter()){
+    // pass++;
+    for (i = 0; i < 2; i++){
+      char group = derive_group();
+      ord |= forward_proc_inc(group);
+    }
+
+    //counts the number of bits we can shift left by - the leading zeros
+    char n = 0;
+    while (ord && !(ord & last_bit)){
+      n += 1;
+      ord = ord << 1;
+    }
+    if (n>4) {
+      n -= 4;
+    }
+    else {
+      n = 0;
+    }
+    for (l = 0; l < 8; l++) {
+      s[l] = f[l] << n;
+      f[l] = s[l] << n;
+    }
+    if (started == false) started = true;
+    // constantly moving ~35 s for 1000 iter   => 29 iter/s => 34 ms
+    // one gestuer => 5 s
+  } else {
+    __delay_cycles(1000);  // delay 1 ms
+    // 3.5 s for 1000 iter => 287 iter/s
+  }
+}
 
 int iter = 0;
 void hmm() {
-  /* UARTSendArray("iter=", 5); */
-  /* UARTSendInt(iter); */
   iter++;
   input_reading();
   if(iter == 1000) {
-    /* char out = input_end(); */
-    /* UARTSendArray("out=", 4); */
-    /* UARTSendInt(out); */
-    UARTSendArray("pass=", 5);
-    UARTSendInt(pass);
-    pass = 0;
+    char out = input_end();
+    //UARTSendArray("out=", 4);
+    UARTSendInt(out);
+    /* UARTSendArray("pass=", 5); */
+    /* UARTSendInt(pass); */
+    /* pass = 0; */
     iter = 0;
     __delay_cycles(1000);  // delay 1 ms
   }
-  /* UARTSendArray("\n", 1); */
 }
