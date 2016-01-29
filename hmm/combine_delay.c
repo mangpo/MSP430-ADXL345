@@ -109,7 +109,6 @@ fp_t b[112] = {
   
 fp_t f[8];
 fp_t s[8];
-fp_t last_bit = 1 << FP_BITS-1;
 char started = false;
 
 void Setup_TX(unsigned char);
@@ -163,24 +162,6 @@ int main(void)
   Transmit(0x2D,0x08);
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
   
-  // Un-comment next block to change range of ADXL345
-  /*
-    Setup_TX(ADXL_345);
-    Transmit(0x31,0x01);                            // Range Select at add 0x31 write 0x00 for 2g(default)/ 0x01 for 4g/ 0x02 for 8g/ 0x03 for 16g
-    while (UCB0CTL1 & UCTXSTP);         // Ensure stop condition got sent
-  */
-
-  /* Set watchdog timer interval to 1000ms (requires external crystal to work) */
-  //WDTCTL = WDT_ADLY_1000;
-
-  /* "Interrupt enable 1" for the Watchdog Timer interrupt */
-  //IE1 |= WDTIE;
-
-  /* Go into low power mode 3, general interrupts enabled */
-  //__bis_SR_register( LPM3_bits + GIE );
-
-  /* Do nothing...forever */
-  //for( ; ; ) { }
   while(1) {
     run();
     //__delay_cycles(1000000);
@@ -503,7 +484,7 @@ void input_reading(){
 
     //counts the number of bits we can shift left by - the leading zeros
     char n = 0;
-    while (ord && !(ord & last_bit)){
+    while(ord > 0){
       n += 1;
       ord = ord << 1;
     }
