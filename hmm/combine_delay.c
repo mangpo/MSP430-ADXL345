@@ -40,7 +40,7 @@ int RXByteCtr;       // enables repeated start when 1
 volatile unsigned char RxBuffer[6];         // Allocate 6 byte of RAM
 unsigned char *PRxData;                     // Pointer to RX data
 unsigned char TXByteCtr, RX = 0;
-unsigned char MSData[3];
+unsigned char MSData[2];
 unsigned int wdtCounter = 0;
 
 fp_t acc[3];
@@ -251,8 +251,8 @@ __interrupt void USCIAB0TX_ISR(void)
   else{                                     // Master Transmit
     if (TXByteCtr)                        // Check TX byte counter
       {
-        UCB0TXBUF = MSData[TXByteCtr];          // Load TX buffer
         TXByteCtr--;                            // Decrement TX byte counter
+        UCB0TXBUF = MSData[TXByteCtr];          // Load TX buffer
       }
     else
       {
@@ -307,8 +307,8 @@ void Setup_RX(unsigned char Dev_ID){
 }
 
 void Transmit(unsigned char Reg_ADD,unsigned char Reg_DAT){
-  MSData[2]= Reg_ADD;
-  MSData[1]= Reg_DAT;
+  MSData[1]= Reg_ADD;
+  MSData[0]= Reg_DAT;
   TXByteCtr = NUM_BYTES_TX;                  // Load TX byte counter
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
   UCB0CTL1 |= UCTR + UCTXSTT;             // I2C TX, start condition
@@ -316,7 +316,7 @@ void Transmit(unsigned char Reg_ADD,unsigned char Reg_DAT){
 }
 
 void TransmitOne(unsigned char Reg_ADD){
-  MSData[1]= Reg_ADD;
+  MSData[0]= Reg_ADD;
   TXByteCtr = 1;                  // Load TX byte counter
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
   UCB0CTL1 |= UCTR + UCTXSTT;             // I2C TX, start condition
