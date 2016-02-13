@@ -22,7 +22,7 @@ fp_add(fp_t x, fp_t y) { return x + y; }
 inline fp_t
 fp_sub(fp_t x, fp_t y) { return x - y; }
 
-//inline fp_t
+//inline 
 fp_t fp_mul(fp_t x, fp_t y){
   fp_t2 _x = (x >= 0 ? x : -x);
   fp_t2 _y = (y >= 0 ? y : -y);
@@ -47,7 +47,7 @@ fp_t fp_mul(fp_t x, fp_t y){
 /* inline fp_t */
 /* fp_inv(fp_t n){ return __fp_div(d2fp(1.0), n);} */
 
-inline int // Return -1,0,1 if <,==,>
+inline char // Return -1,0,1 if <,==,>
 fp_cmp(fp_t x, fp_t y){
   return x < y ? -1 : (x > y ? 1 : 0);
 }

@@ -124,7 +124,7 @@ void run();
 int main(void)
 {
   // LED
-  /* P1DIR |= BIT0; */
+  P1DIR |= BIT0;
   /* P1OUT |= BIT0; */
 
   // UART
@@ -215,12 +215,12 @@ void run()
   // Below if sense x and y angle and Red led is on if its more then 45 or less then -45...
   // you can put your own condition here...
 
-  /* if ((acc[0] > 0x2000) || (acc[1] > 0x2000) || (acc[0] < -0x2000) || (acc[1] < -0x2000)) { */
-  /*   P1OUT |= BIT0; // red led on */
-  /* } */
-  /* else { */
-  /*   P1OUT &= ~BIT0; // red led off */
-  /* } */
+  if ((acc[0] > 0x2000) || (acc[1] > 0x2000) || (acc[0] < -0x2000) || (acc[1] < -0x2000)) {
+    P1OUT |= BIT0; // red led on
+  }
+  else {
+    P1OUT &= ~BIT0; // red led off
+  }
 
   Setup_UART();
   /* UARTSendArray("sample\n", 7); */

@@ -1,29 +1,4 @@
-//  Interfacing ADXL345 accelerometer with MSP430G2553 with I2C communication
-//  and printing restuls to serial port using UART.
-//
-//                                /|\  /|\
-//               ADXL345          10k  10k     MSP430G2xx3
-//                slave            |    |        master
-//             -----------------   |    |  -----------------
-//            |              SDA|<-|---+->|P1.7/UCB0SDA  XIN|-
-//            |                 |  |      |                 |
-//            |                 |  |      |             XOUT|-
-//            |              SCL|<-+----->|P1.6/UCB0SCL     |
-//            |                 |         |                 |
-//
-//  For Sparkfun ADXL345,
-//    * connect SDO to ground
-//    * connect CS to VCC
-//
-//  Original Code Made By :
-//  Prof. Ravi Butani
-//  Marwadi Education Foundation, Rajkot GUJARAT-INDIA
-//  ravi.butani@marwadieducation.edu.in
-//  https://e2e.ti.com/support/microcontrollers/msp430/f/166/t/260094
-//
-//  Modified By :
-//  Phitchaya Mangpo Phothilimthana
-//  mangpo@eecs.berkeley.edu
+//  1 gesture classifier
 
 //******************************************************************************
 #include <msp430g2553.h>
@@ -32,16 +7,8 @@
 #define true 1
 #define false 0
 
-#define NUM_BYTES_TX 2  
-#define NUM_BYTES_RX 6
-#define ADXL_345     0x53
-
-int RXByteCtr;       // enables repeated start when 1
 volatile unsigned char RxBuffer[6];         // Allocate 6 byte of RAM
-unsigned char *PRxData;                     // Pointer to RX data
-unsigned char TXByteCtr, RX = 0;
-unsigned char MSData[2];
-unsigned int wdtCounter = 0;
+int pass = 0;
 
 fp_t acc[3];
 fp_t dir_filter_ref[3];
@@ -124,9 +91,9 @@ void run();
 int main(void)
 {
   WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
-  
+
   // LED
-  /* P1DIR |= BIT0; */
+  P1DIR |= BIT0;
   /* P1OUT |= BIT0; */
 
   // UART
@@ -138,177 +105,35 @@ int main(void)
   P1SEL2 |= BIT1 + BIT2 ; // P1.1 = RXD, P1.2=TXD
     
   Setup_UART();
-  UARTSendArray("Hello\n", 6);
-  //__delay_cycles(1000);
 
   // ADXL345
   P1SEL  |= BIT6 + BIT7;                     // Assign I2C pins to USCI_B0
   P1SEL2 |= BIT6 + BIT7;                     // Assign I2C pins to USCI_B0
 
-  // Init sequence for ADXL345
-  //Transmit process
-  Setup_TX(ADXL_345);
-  Transmit(0x2D,0x00);                    // STUCK
-  while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
-
-  //Transmit process
-  Setup_TX(ADXL_345);
-  Transmit(0x2D,0x10);
-  while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
-
-  //Transmit process
-  Setup_TX(ADXL_345);
-  Transmit(0x2D,0x08);
-  while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
-  
-  while(1) {
-    run();
-    //__delay_cycles(1000000);
+  int i;
+  while(true) {
+    UARTSendInt(1);
+    for(i=0;i<100;i++) {
+      acc[0] = ((((int)RxBuffer[1]) << 8) | RxBuffer[0]) << 6;
+      acc[1] = ((((int)RxBuffer[3]) << 8) | RxBuffer[2]) << 6;
+      acc[2] = ((((int)RxBuffer[5]) << 8) | RxBuffer[4]) << 6;
+      hmm();
+    }
+    UARTSendInt(pass);
   }
-}
-
-
-/* Watchdog Timer interrupt service routine.  The function prototype
- *  tells the compiler that this will service the Watchdog Timer, and
- *  then the function follows.
- *    */
-void run()
-{
-  //Transmit process
-  Setup_TX(ADXL_345);
-  TransmitOne(0x32);                      // Request Data from ADXL345
-  while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
-
-  //Receive process
-  Setup_RX(ADXL_345);
-  Receive();
-  while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
-
-  acc[0] = ((((int)RxBuffer[1]) << 8) | RxBuffer[0]) << 6;
-  acc[1] = ((((int)RxBuffer[3]) << 8) | RxBuffer[2]) << 6;
-  acc[2] = ((((int)RxBuffer[5]) << 8) | RxBuffer[4]) << 6;
-    
-  // now You have XYZ axis reading in x1,x2,x3 variable....Bingo... you can play with it as you like....
-  // Below if sense x and y angle and Red led is on if its more then 45 or less then -45...
-  // you can put your own condition here...
-
-  /* if ((x1 > 128) || (y1 > 128) || (x1 < -128) || (y1 < -128)) { */
-  /*   P1OUT |= BIT0; // red led on */
-  /* } */
-  /* else { */
-  /*   P1OUT &= ~BIT0; // red led off */
-  /* } */
-
-  Setup_UART();
-  /* UARTSendArray("sample\n", 7); */
-  /* UARTSendInt(acc[0]); */
-  /* UARTSendInt(acc[1]); */
-  /* UARTSendInt(acc[2]); */
-  hmm();
-}
-
-//-------------------------------------------------------------------------------
-// The USCI_B0 data ISR is used to move received data from the I2C slave
-// to the MSP430 memory. It is structured such that it can be used to receive
-// any 2+ number of bytes by pre-loading RXByteCtr with the byte count.
-//-------------------------------------------------------------------------------
-#pragma vector = USCIAB0TX_VECTOR
-__interrupt void USCIAB0TX_ISR(void)
-{
-  
-  if(RX == 1){                              // Master Recieve?
-    RXByteCtr--;                              // Decrement RX byte counter
-    if (RXByteCtr)
-      {
-        *PRxData++ = UCB0RXBUF;                 // Move RX data to address PRxData
-      }
-    else
-      {
-        UCB0CTL1 |= UCTXSTP;                // No Repeated Start: stop condition
-        *PRxData++ = UCB0RXBUF;                   // Move final RX data to PRxData
-        __bic_SR_register_on_exit(CPUOFF);      // Exit LPM0
-      }}
-  else{                                     // Master Transmit
-    if (TXByteCtr)                        // Check TX byte counter
-      {
-        TXByteCtr--;                            // Decrement TX byte counter
-        UCB0TXBUF = MSData[TXByteCtr];          // Load TX buffer
-      }
-    else
-      {
-          UCB0CTL1 |= UCTXSTP;                    // I2C stop condition
-          IFG2 &= ~UCB0TXIFG;                     // Clear USCI_B0 TX int flag
-          __bic_SR_register_on_exit(CPUOFF);      // Exit LPM0
-      }
-  }
+  //__delay_cycles(1000);
+  __bis_SR_register( LPM3_bits + GIE );
+  for( ; ; ) { }
 }
 
 void Setup_UART() {
   _DINT();
-  IE2 &= ~UCB0RXIE; 
-  IE2 &= ~UCB0TXIE; 
   UCA0CTL1 |= UCSSEL_2; // Use SMCLK
   UCA0BR0 = 104; // Set baud rate to 9600 with 1MHz clock (Data Sheet 15.3.13)
   UCA0BR1 = 0; // Set baud rate to 9600 with 1MHz clock
   UCA0MCTL = UCBRS0; // Modulation UCBRSx = 1
   UCA0CTL1 &= ~UCSWRST; // Initialize USCI state machine
   IE2 |= UCA0RXIE; // Enable USCI_A0 RX interrupt
-}
-
-void Setup_TX(unsigned char Dev_ID){
-  _DINT();
-  RX = 0;
-  IE2 &= ~UCA0RXIE; // Disable USCI_A0 RX interrupt
-  IE2 &= ~UCB0RXIE; 
-  while (UCB0CTL1 & UCTXSTP);               // Ensure stop condition got sent// Disable RX interrupt
-  UCB0CTL1 |= UCSWRST;                      // Enable SW reset
-  UCB0CTL0 = UCMST + UCMODE_3 + UCSYNC;     // I2C Master, synchronous mode
-  UCB0CTL1 = UCSSEL_2 + UCSWRST;            // Use SMCLK, keep SW reset
-  UCB0BR0 = 12;                             // fSCL = SMCLK/12 = ~100kHz
-  UCB0BR1 = 0;
-  UCB0I2CSA = Dev_ID;                       // Slave Address is 048h
-  UCB0CTL1 &= ~UCSWRST;                     // Clear SW reset, resume operation
-  IE2 |= UCB0TXIE;                          // Enable TX interrupt
-}
-
-void Setup_RX(unsigned char Dev_ID){
-  _DINT();
-  RX = 1;
-  IE2 &= ~UCA0RXIE; // Disable USCI_A0 RX interrupt
-  IE2 &= ~UCB0TXIE; 
-  UCB0CTL1 |= UCSWRST;                      // Enable SW reset
-  UCB0CTL0 = UCMST + UCMODE_3 + UCSYNC;     // I2C Master, synchronous mode
-  UCB0CTL1 = UCSSEL_2 + UCSWRST;            // Use SMCLK, keep SW reset
-  UCB0BR0 = 12;                             // fSCL = SMCLK/12 = ~100kHz
-  UCB0BR1 = 0;
-  UCB0I2CSA = Dev_ID;                       // Slave Address is 048h
-  UCB0CTL1 &= ~UCSWRST;                     // Clear SW reset, resume operation
-  IE2 |= UCB0RXIE;                          // Enable RX interrupt
-}
-
-void Transmit(unsigned char Reg_ADD,unsigned char Reg_DAT){
-  MSData[1]= Reg_ADD;
-  MSData[0]= Reg_DAT;
-  TXByteCtr = NUM_BYTES_TX;                  // Load TX byte counter
-  while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
-  UCB0CTL1 |= UCTR + UCTXSTT;             // I2C TX, start condition
-  __bis_SR_register(CPUOFF + GIE);        // Enter LPM0 w/ interrupts
-}
-
-void TransmitOne(unsigned char Reg_ADD){
-  MSData[0]= Reg_ADD;
-  TXByteCtr = 1;                  // Load TX byte counter
-  while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
-  UCB0CTL1 |= UCTR + UCTXSTT;             // I2C TX, start condition
-  __bis_SR_register(CPUOFF + GIE);        // Enter LPM0 w/ interrupts
-}
-
-void Receive(void){
-  PRxData = (unsigned char *)RxBuffer;    // Start of RX buffer
-  RXByteCtr = NUM_BYTES_RX;             // Load RX byte counter
-  while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
-  UCB0CTL1 |= UCTXSTT;                    // I2C start condition
-  __bis_SR_register(CPUOFF + GIE);        // Enter LPM0 w/ interrupts
 }
 
 void UARTSendArray(unsigned char *TxArray, unsigned char ArrayLength){
@@ -354,21 +179,20 @@ void UARTSendInt(unsigned int x){
 //-------------------------------------------------------------------------------
 // HMM
 //-------------------------------------------------------------------------------
-
 char filter(){
   fp_t abs = fp_add(fp_add(fp_mul(acc[0], acc[0]),
                            fp_mul(acc[1], acc[1])),
                     fp_mul(acc[2], acc[2]));
   ////////////////////////////////////////////////////////////////////////////////
   //idle state filter
-  if (!(fp_cmp(abs, d2fp(0.32))==1 ||
-        fp_cmp(abs, d2fp(0.27))==-1)) { // if between 0.01 - 0.09
-    return false;
+  if (!(fp_cmp(abs, 10485)==1 ||
+        fp_cmp(abs, 8847)==-1)) { // if between 0.01 - 0.09
+    return true;
   }
 
   ////////////////////////////////////////////////////////////////////////////////
   // def = directional equivalence filter
-  fp_t def_sensitivity = d2fp(0.08);
+  fp_t def_sensitivity = 2621;
   if (fp_cmp(acc[0], fp_sub(dir_filter_ref[0], def_sensitivity))==-1 ||
       fp_cmp(acc[0], fp_add(dir_filter_ref[0], def_sensitivity))== 1 ||
       fp_cmp(acc[1], fp_sub(dir_filter_ref[1], def_sensitivity))==-1 ||
@@ -378,9 +202,10 @@ char filter(){
     dir_filter_ref[0] = acc[0];
     dir_filter_ref[1] = acc[1];
     dir_filter_ref[2] = acc[2];
+    pass++;
     return true;
   }
-  return false;
+  return true;
 }
 
 //The quantizer, maps accelerometer readings to a set of integers.
@@ -468,14 +293,14 @@ char input_end(){
   return recognized;
 }
 
-// int pass = 0;
+//int pass = 0;
 
 //Called with each accelerometer reading
 void input_reading(){
   fp_t ord = 0;
   char i,l;
   if (filter()){
-    // pass++;
+    //pass++;
     for (i = 0; i < 2; i++){
       char group = derive_group();
       ord |= forward_proc_inc(group);
@@ -502,22 +327,11 @@ void input_reading(){
     // one gestuer => 5 s
   } else {
     //__delay_cycles(1000);  // delay 1 ms
-    // 3.5 s for 1000 iter => 287 iter/s
+    // 3.9 s
   }
 }
 
 int iter = 0;
 void hmm() {
-  iter++;
   input_reading();
-  if(iter == 1000) {
-    char out = input_end();
-    //UARTSendArray("out=", 4);
-    UARTSendInt(out);
-    /* UARTSendArray("pass=", 5); */
-    /* UARTSendInt(pass); */
-    /* pass = 0; */
-    iter = 0;
-    //__delay_cycles(1000);  // delay 1 ms
-  }
 }

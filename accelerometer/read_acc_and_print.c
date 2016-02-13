@@ -32,11 +32,11 @@
 #define NUM_BYTES_RX 6
 #define ADXL_345     0x53
 
-int RXByteCtr, RPT_Flag = 0,x1,y1,z1;       // enables repeated start when 1
-volatile unsigned char RxBuffer[8];         // Allocate 6 byte of RAM
+int RXByteCtr, x1,y1,z1;       // enables repeated start when 1
+volatile unsigned char RxBuffer[6];         // Allocate 6 byte of RAM
 unsigned char *PRxData;                     // Pointer to RX data
 unsigned char TXByteCtr, RX = 0;
-unsigned char MSData[3];
+unsigned char MSData[2];
 
 void Setup_TX(unsigned char);
 void Setup_RX(unsigned char);
@@ -62,9 +62,6 @@ int main(void)
   P1SEL |= BIT1 + BIT2 ; // P1.1 = RXD, P1.2=TXD
   P1SEL2 |= BIT1 + BIT2 ; // P1.1 = RXD, P1.2=TXD
     
-  Setup_UART();
-  UARTSendArray("Hello\n", 6);
-  __delay_cycles(1000);
 
   // ADXL345
   P1SEL  |= BIT6 + BIT7;                     // Assign I2C pins to USCI_B0
@@ -73,19 +70,16 @@ int main(void)
   // Init sequence for ADXL345
   //Transmit process
   Setup_TX(ADXL_345);
-  RPT_Flag = 0;
   Transmit(0x2D,0x00);                    // STUCK
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
 
   //Transmit process
   Setup_TX(ADXL_345);
-  RPT_Flag = 0;
   Transmit(0x2D,0x10);
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
 
   //Transmit process
   Setup_TX(ADXL_345);
-  RPT_Flag = 0;
   Transmit(0x2D,0x08);
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
   
@@ -97,10 +91,19 @@ int main(void)
     while (UCB0CTL1 & UCTXSTP);         // Ensure stop condition got sent
   */
 
+  long long i;
+
   while(1){
+    Setup_UART();
+    //UARTSendArray("Hello\n", 6);
+    UARTSendArray("0\n", 2);
+    
+  // loop to measure completion time
+  for(i=0;i<1000;i++) {
+    
+  //while(1){
     //Transmit process
     Setup_TX(ADXL_345);
-    RPT_Flag = 0;
     TransmitOne(0x32);                                   // Request Data from ADXL345 in 2g Range 10Bit resolution
     while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
 
@@ -117,22 +120,33 @@ int main(void)
     // Below if sense x and y angle and Red led is on if its more then 45 or less then -45...
     // you can put your own condition here...
 
-    if ((x1 > 128) || (y1 > 128) || (x1 < -128) || (y1 < -128)) {
-      P1OUT |= BIT0; // red led on
-    }
-    else {
-      P1OUT &= ~BIT0; // red led off
-    }
+    /* if ((x1 > 128) || (y1 > 128) || (x1 < -128) || (y1 < -128)) { */
+    /*   P1OUT |= BIT0; // red led on */
+    /* } */
+    /* else { */
+    /*   P1OUT &= ~BIT0; // red led off */
+    /* } */
 
-    Setup_UART();
-    UARTSendArray("sample\n", 7);
-    UARTSendInt(x1);
-    UARTSendInt(y1);
-    UARTSendInt(z1);
-    __delay_cycles(1000000);  // delay 1 sec
+    /* Setup_UART(); */
+    /* UARTSendArray("sample\n", 7); */
+    /* UARTSendInt(x1); */
+    /* UARTSendInt(y1); */
+    /* UARTSendInt(z1); */
+    //__delay_cycles(1000000);  // delay 1 sec
     // you can change by changing delay
 
   }
+  Setup_UART();
+  //UARTSendArray("Hello\n", 6);
+  UARTSendArray("1\n", 2);
+  //__delay_cycles(1000);
+  }
+
+  /* Go into low power mode 3, general interrupts enabled */
+  __bis_SR_register( LPM3_bits + GIE );
+
+  /* Do nothing...forever */
+  for( ; ; ) { }
 }
 
 //-------------------------------------------------------------------------------
@@ -152,34 +166,21 @@ __interrupt void USCIAB0TX_ISR(void)
       }
     else
       {
-        if(RPT_Flag == 0)
-          UCB0CTL1 |= UCTXSTP;                // No Repeated Start: stop condition
-        if(RPT_Flag == 1){                    // if Repeated Start: do nothing
-          RPT_Flag = 0;
-        }
+        UCB0CTL1 |= UCTXSTP;                // No Repeated Start: stop condition
         *PRxData++ = UCB0RXBUF;                   // Move final RX data to PRxData
         __bic_SR_register_on_exit(CPUOFF);      // Exit LPM0
       }}
   else{                                     // Master Transmit
     if (TXByteCtr)                        // Check TX byte counter
       {
-        UCB0TXBUF = MSData[TXByteCtr];          // Load TX buffer
         TXByteCtr--;                            // Decrement TX byte counter
+        UCB0TXBUF = MSData[TXByteCtr];          // Load TX buffer
       }
     else
       {
-        /* UCB0CTL1 |= UCTXSTP;                    // I2C stop condition */
-        /* IFG2 &= ~UCB0TXIFG;                     // Clear USCI_B0 TX int flag */
-        if(RPT_Flag == 1){
-          RPT_Flag = 0;
-          TXByteCtr = NUM_BYTES_TX;                // Load TX byte counter
-          __bic_SR_register_on_exit(CPUOFF);
-        }
-        else{
           UCB0CTL1 |= UCTXSTP;                    // I2C stop condition
           IFG2 &= ~UCB0TXIFG;                     // Clear USCI_B0 TX int flag
           __bic_SR_register_on_exit(CPUOFF);      // Exit LPM0
-        }
       }
   }
 }
@@ -228,8 +229,8 @@ void Setup_RX(unsigned char Dev_ID){
 }
 
 void Transmit(unsigned char Reg_ADD,unsigned char Reg_DAT){
-  MSData[2]= Reg_ADD;
-  MSData[1]= Reg_DAT;
+  MSData[1]= Reg_ADD;
+  MSData[0]= Reg_DAT;
   TXByteCtr = NUM_BYTES_TX;                  // Load TX byte counter
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
   UCB0CTL1 |= UCTR + UCTXSTT;             // I2C TX, start condition
@@ -237,7 +238,7 @@ void Transmit(unsigned char Reg_ADD,unsigned char Reg_DAT){
 }
 
 void TransmitOne(unsigned char Reg_ADD){
-  MSData[1]= Reg_ADD;
+  MSData[0]= Reg_ADD;
   TXByteCtr = 1;                  // Load TX byte counter
   while (UCB0CTL1 & UCTXSTP);             // Ensure stop condition got sent
   UCB0CTL1 |= UCTR + UCTXSTT;             // I2C TX, start condition
